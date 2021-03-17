@@ -11,6 +11,6 @@ void map_dealloc(struct hashmap*);
 void map_insert(struct hashmap**, void*, void*);
 struct hashmap_entry* map_get(struct hashmap*, void*);
 struct hashmap_entry* map_remove(struct hashmap*, void*);
-void debug_print(struct hashmap*);
+void debug_print_map(struct hashmap*);
 
 #endif

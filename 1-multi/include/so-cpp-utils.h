@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -29,7 +30,7 @@
 		}							\
 	} while (0)
 
-#define LINE_LIMIT 256
+#define BUFFER_LIMIT 256
 
 int compare_strings(void*, void*);
 unsigned long long hash_string(void*);

@@ -55,6 +55,11 @@ void traverse(entry_t list, void (*operation)(entry_t)) {
 void free_entry(entry_t entry) { 
     if (!entry)
         return;
+    
+    if (entry->key)
+        free(entry->key);
+    if (entry->value)
+        free(entry->value);
 
     free(entry);
 }
@@ -85,8 +90,6 @@ void map_insert(struct hashmap** pmap, void* key, void* value) {
 
     if (!key || !value)
         return;
-
-    TRACE(("current load factor: %f : map load factor: %f\n", ((double) map->size / map->capacity), map->load_factor));
 
     if (((double) map->size / map->capacity) >= map->load_factor) {
         map_t new_map = map_alloc(2 * map->capacity, map->load_factor, map->hash, map->compare);
@@ -133,7 +136,7 @@ void print(entry_t entry) {
     TRACE(("\t{%s = %s, %llu}\n", (char*) entry->key, (char*) entry->value, entry->hash_value));
 }
 
-void debug_print(struct hashmap* map) {
+void debug_print_map(struct hashmap* map) {
     if (!map) {
         return;
     }
