@@ -1,6 +1,6 @@
 CC=gcc
 LIBS=-lm
-CFLAGS=-I$(IDIR) $(LIBS) -g
+CFLAGS=-I$(IDIR) $(LIBS) -std=c89
 
 IDIR=./include
 ODIR=./out
@@ -11,6 +11,10 @@ SRC := $(wildcard $(SRCDIR)/*.c)
 OBJ := $(SRC:$(SRCDIR)/%.c=$(ODIR)/%.o)
 
 all: so-cpp
+
+debug: clean
+debug: CFLAGS += -D DEBUG
+debug: so-cpp
 
 so-cpp: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)

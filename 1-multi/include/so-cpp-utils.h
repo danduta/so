@@ -12,6 +12,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdarg.h>
+
+#ifndef DEBUG
+#define DEBUG 0
+#endif
 
 /* useful macro for handling error codes */
 #define DIE(assertion, call_description)				\
@@ -27,6 +32,10 @@
 #define LINE_LIMIT 256
 
 int compare_strings(void*, void*);
-u_int64_t hash_string(void*);
+unsigned long long hash_string(void*);
+
+#define TRACE(x) do { if (DEBUG) dbg_printf x; } while (0)
+
+void dbg_printf(const char *fmt, ...);
 
 #endif

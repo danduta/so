@@ -4,7 +4,7 @@ typedef struct hashmap_entry {
     void* key;
     void* value;
 
-    u_int64_t hash_value;
+    unsigned long long hash_value;
 
     struct hashmap_entry* next;
 } *entry_t;
@@ -15,13 +15,13 @@ typedef struct hashmap {
     size_t capacity;
     double load_factor;
 
-    u_int64_t (*hash)(void*);
+    unsigned long long (*hash)(void*);
     int (*compare)(void*, void*);
 
     struct hashmap_entry** elements;
 } *map_t;
 
-struct hashmap* map_alloc(size_t initial_size, double load_factor, u_int64_t (*hash)(void*), int (*compare)(void*, void*)) {
+struct hashmap* map_alloc(size_t initial_size, double load_factor, unsigned long long (*hash)(void*), int (*compare)(void*, void*)) {
     if (initial_size < 1 || load_factor > 1)
         return NULL;
 
@@ -63,7 +63,8 @@ void map_dealloc(struct hashmap* map) {
     if (!map)
         return;
 
-    for (int i = 0; i < map->size; i++) {
+    int i;
+    for (i = 0; i < map->size; i++) {
         entry_t entry = map->elements[i];
 
         if (!entry)
@@ -76,22 +77,41 @@ void map_dealloc(struct hashmap* map) {
     free(map);
 }
 
-void map_insert(struct hashmap* map, void* key, void* value) {
-    if (!map || !map->elements)
+void map_insert(struct hashmap** pmap, void* key, void* value) {
+    if (!pmap || !(*pmap)->elements)
         return;
+
+    map_t map = *pmap;
 
     if (!key || !value)
         return;
 
-    // treat load factor and resizing
+    TRACE(("current load factor: %f : map load factor: %f\n", ((double) map->size / map->capacity), map->load_factor));
+
+    if (((double) map->size / map->capacity) >= map->load_factor) {
+        map_t new_map = map_alloc(2 * map->capacity, map->load_factor, map->hash, map->compare);
+        DIE(!new_map, "malloc");
+
+        int i;
+        for (i = 0; i < map->capacity; i++) {
+            if (!map->elements[i])
+                continue;
+
+            entry_t curr = map->elements[i];
+            while (curr) {
+                map_insert(&new_map, curr->key, curr->value);
+                curr = curr->next;
+            }
+        }
+
+        *pmap = new_map;
+        map = new_map;
+    }
 
     DIE (!map->hash, "no hash");
 
-    u_int64_t hash_value = map->hash(key);
+    unsigned long long hash_value = map->hash(key);
     size_t index = hash_value % map->capacity;
-
-    // printf("%u %u\n", index, map->capacity);
-    printf("%d %s %s\n", index, key, value);
 
     entry_t current_entry = calloc(sizeof(struct hashmap_entry), 1);
     DIE(!current_entry, "calloc");
@@ -110,7 +130,7 @@ struct hashmap_entry* map_remove(struct hashmap* map, void* key) {
 }
 
 void print(entry_t entry) {
-    fprintf(stdout, "\t{%s = %s, %lu}\n", (char*) entry->key, (char*) entry->value, entry->hash_value);
+    TRACE(("\t{%s = %s, %llu}\n", (char*) entry->key, (char*) entry->value, entry->hash_value));
 }
 
 void debug_print(struct hashmap* map) {
@@ -118,10 +138,11 @@ void debug_print(struct hashmap* map) {
         return;
     }
 
-    for (int i = 0; i < map->capacity; i++) {
-        fprintf(stdout, "[%d]:\n", i);
+    int i;
+    for (i = 0; i < map->capacity; i++) {
+        TRACE(("[%d]:\n", i));
         if (!map->elements[i])
-            fprintf(stdout, "\tNULL\n");
+            TRACE(("\tNULL\n"));
         else
             traverse(map->elements[i], print);
     }
