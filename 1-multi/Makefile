@@ -1,6 +1,6 @@
 CC=gcc
 LIBS=-lm
-CFLAGS=-I$(IDIR) $(LIBS)
+CFLAGS=-I$(IDIR) $(LIBS) -g
 
 IDIR=./include
 ODIR=./out

@@ -1,16 +1,16 @@
-#ifndef _SO_CPP_HASHMAP_
-#define _SO_CPP_HASHMAP_
+#ifndef _SO_CPP_HASHMAP_H_
+#define _SO_CPP_HASHMAP_H_ 1
 
-#include <unistd.h>
+#include <so-cpp-utils.h>
 
 struct hashmap;
 struct hashmap_entry;
 
-struct hashmap* map_alloc(size_t);
+struct hashmap* map_alloc(size_t, double, u_int64_t (void*), int (void*, void*));
 void map_dealloc(struct hashmap*);
-size_t map_insert(struct hashmap*, char*, char*);
-struct hashmap_entry* map_get(struct hashmap*, char*);
-struct hashmap_entry* map_remove(struct hashmap*, char*);
-
+void map_insert(struct hashmap*, void*, void*);
+struct hashmap_entry* map_get(struct hashmap*, void*);
+struct hashmap_entry* map_remove(struct hashmap*, void*);
+void debug_print(struct hashmap*);
 
 #endif
