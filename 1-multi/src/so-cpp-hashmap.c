@@ -54,8 +54,8 @@ void traverse(entry_t list, void (*operation)(entry_t)) {
 
 void free_entry(entry_t entry) { 
     if (!entry)
-        return;
-    
+        return; 
+
     if (entry->key)
         free(entry->key);
     if (entry->value)
@@ -69,7 +69,7 @@ void map_dealloc(struct hashmap* map) {
         return;
 
     int i;
-    for (i = 0; i < map->size; i++) {
+    for (i = 0; i < map->capacity; i++) {
         entry_t entry = map->elements[i];
 
         if (!entry)
@@ -107,6 +107,8 @@ void map_insert(struct hashmap** pmap, void* key, void* value) {
             }
         }
 
+        map_dealloc(*pmap);
+
         *pmap = new_map;
         map = new_map;
     }
@@ -116,7 +118,7 @@ void map_insert(struct hashmap** pmap, void* key, void* value) {
     unsigned long long hash_value = map->hash(key);
     size_t index = hash_value % map->capacity;
 
-    entry_t current_entry = calloc(sizeof(struct hashmap_entry), 1);
+    entry_t current_entry = calloc(1, sizeof(struct hashmap_entry));
     DIE(!current_entry, "calloc");
 
     current_entry->hash_value = hash_value;

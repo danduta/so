@@ -24,6 +24,8 @@ void list_dealloc(list l) {
 
         curr = next;
     }
+
+    free(l);
 }
 
 void list_insert(list l, void* data) {
