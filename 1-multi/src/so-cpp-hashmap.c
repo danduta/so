@@ -18,6 +18,7 @@ int map_alloc(map_t *map, size_t initial_size, double load_factor, unsigned long
     DIE(!result->elements, "malloc");
 
     result->hash = hash;
+    result->compare = compare;
     result->load_factor = load_factor;
 
     *map = result;
@@ -115,6 +116,16 @@ int map_insert(struct hashmap **pmap, void *key, void *value)
 
     unsigned long long hash_value = map->hash(key);
     size_t index = hash_value % map->capacity;
+
+    entry_t existing = map->elements[index];
+    while (existing) {
+        if (!(map->compare(existing->key, key))) {
+            existing->value = value;
+            return EXIT_SUCCESS;
+        }
+
+        existing = existing->next;
+    }
 
     entry_t current_entry = calloc(1, sizeof(struct hashmap_entry));
     if (!current_entry)

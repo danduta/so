@@ -5,9 +5,10 @@
 #include <so-cpp-list.h>
 #include <so-cpp-utils.h>
 
-int cpp_parse_cli_args(int, char *[], map_t *, list_t, list_t, char *);
-FILE *cpp_get_filep(char *);
-int cpp_get_file_list(list_t *, list_t);
-int cpp_parse_defines(map_t *, list_t);
+#define C_EXTENS        ".c"
+#define PREPROC_EXTENS  ".i"
+
+int cpp_parse_cli_args(int, char *[], map_t*, list_t, char*, char*);
+int cpp_parse_input_file(map_t*, char*, char*, list_t);
 
 #endif
