@@ -3,12 +3,20 @@
 
 #include <so-cpp-utils.h>
 
-typedef struct list_node* list;
+struct list_node
+{
+    void *data;
+    struct list_node *next;
+    void (*free)(void *);
+};
 
-list list_alloc();
-void list_dealloc(list);
-void list_insert(list, void*);
-struct list_node* list_remove(list, void*);
-void debug_print_list(list);
+typedef struct list_node *list_t;
+typedef struct list_node *node_t;
+
+int list_alloc(list_t *, void(void *));
+void list_dealloc(list_t);
+int list_insert(list_t, void *);
+struct list_node *list_remove(list_t, void *);
+void debug_print_list(list_t);
 
 #endif
