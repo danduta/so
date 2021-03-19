@@ -18,6 +18,5 @@ int list_alloc(list_t *, void(void *));
 void list_dealloc(list_t);
 int list_insert(list_t, void *);
 struct list_node *list_remove(list_t, void *);
-void debug_print_list(list_t);
 
 #endif

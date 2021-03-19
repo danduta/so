@@ -2,7 +2,8 @@
 
 int list_alloc(list_t *l, void (*free)(void *))
 {
-    list_t res = calloc(sizeof(struct list_node), 1);
+    list_t res;
+    res = calloc(sizeof(struct list_node), 1);
     if (!res)
         exit(ENOMEM);
 
@@ -13,13 +14,15 @@ int list_alloc(list_t *l, void (*free)(void *))
 
 void list_dealloc(list_t l)
 {
+    node_t curr, next;
+
     if (!l)
         return;
 
-    struct list_node *curr = l->next;
+    curr = l->next;
     while (curr)
     {
-        struct list_node *next = curr->next;
+        next = curr->next;
 
         if (curr->data)
             l->free(curr->data);
@@ -34,10 +37,12 @@ void list_dealloc(list_t l)
 
 int list_insert(list_t l, void *data)
 {
+    node_t new_node;
+
     if (!l)
         return EINVAL;
 
-    struct list_node *new_node = malloc(sizeof(struct list_node));
+    new_node = malloc(sizeof(struct list_node));
     if (!new_node)
         return ENOMEM;
 
@@ -59,23 +64,4 @@ int list_insert(list_t l, void *data)
 struct list_node *list_remove(list_t l, void *data)
 {
     return NULL;
-}
-
-void debug_print_list(list_t l)
-{
-    if (!l)
-        return;
-
-    TRACE(("["));
-    list_t curr = l->next;
-    while (curr)
-    {
-        TRACE(("%s", curr->data));
-        if (curr->next)
-            TRACE((", "));
-
-        curr = curr->next;
-    }
-
-    TRACE(("]\n"));
 }

@@ -2,13 +2,14 @@
 
 int map_alloc(map_t *map, size_t initial_size, double load_factor, unsigned long long (*hash)(void *), int (*compare)(void *, void *))
 {
+    map_t result;
     if (initial_size < 1 || load_factor > 1)
         return EINVAL;
 
     if (!hash)
         return EINVAL;
 
-    map_t result = malloc(sizeof(struct hashmap));
+    result = malloc(sizeof(struct hashmap));
     if (!result)
         return ENOMEM;
 
@@ -29,13 +30,14 @@ int map_alloc(map_t *map, size_t initial_size, double load_factor, unsigned long
 
 void traverse(entry_t list, void (*operation)(entry_t))
 {
+    entry_t curr, next;
     if (!list || !operation)
         return;
 
-    entry_t curr = list;
+    curr = list;
     while (curr)
     {
-        entry_t next = curr->next;
+        next = curr->next;
         operation(curr);
         curr = next;
     }
@@ -56,13 +58,15 @@ void free_entry(entry_t entry)
 
 void map_dealloc(struct hashmap *map)
 {
+    int i;
+    entry_t entry;
+
     if (!map)
         return;
 
-    int i;
     for (i = 0; i < map->capacity; i++)
     {
-        entry_t entry = map->elements[i];
+        entry = map->elements[i];
 
         if (!entry)
             continue;
@@ -76,17 +80,22 @@ void map_dealloc(struct hashmap *map)
 
 int map_insert(struct hashmap **pmap, void *key, void *value)
 {
+    map_t map, new_map;
+    entry_t curr;
+    unsigned long long hash_value;
+    size_t index;
+
     if (!pmap || !(*pmap)->elements)
         return EINVAL;
 
-    map_t map = *pmap;
+    map = *pmap;
 
     if (!key || !value)
         return EINVAL;
 
     if (((double)map->size / map->capacity) >= map->load_factor)
     {
-        map_t new_map;
+        new_map;
         if (map_alloc(&new_map, 2 * map->capacity, map->load_factor, map->hash, map->compare))
             return ENOMEM;
 
@@ -96,7 +105,7 @@ int map_insert(struct hashmap **pmap, void *key, void *value)
             if (!map->elements[i])
                 continue;
 
-            entry_t curr = map->elements[i];
+            curr = map->elements[i];
             while (curr)
             {
                 if (map_insert(&new_map, curr->key, curr->value))
@@ -115,43 +124,47 @@ int map_insert(struct hashmap **pmap, void *key, void *value)
     if (!map->hash)
         return EINVAL;
 
-    unsigned long long hash_value = map->hash(key);
-    size_t index = hash_value % map->capacity;
+    hash_value = map->hash(key);
+    index = hash_value % map->capacity;
 
-    entry_t existing = map->elements[index];
-    while (existing) {
-        if (!(map->compare(existing->key, key))) {
-            free(existing->value);
-            existing->value = value;
+    curr = map->elements[index];
+    while (curr) {
+        if (!(map->compare(curr->key, key))) {
+            free(curr->value);
+            curr->value = value;
             return EXIT_SUCCESS;
         }
 
-        existing = existing->next;
+        curr = curr->next;
     }
 
-    entry_t current_entry = calloc(1, sizeof(struct hashmap_entry));
-    if (!current_entry)
+    curr = calloc(1, sizeof(struct hashmap_entry));
+    if (!curr)
         return ENOMEM;
 
-    current_entry->hash_value = hash_value;
-    current_entry->key = key;
-    current_entry->value = value;
-    current_entry->next = map->elements[index];
+    curr->hash_value = hash_value;
+    curr->key = key;
+    curr->value = value;
+    curr->next = map->elements[index];
 
-    map->elements[index] = current_entry;
+    map->elements[index] = curr;
     map->size++;
 
     return EXIT_SUCCESS;
 }
 
 entry_t map_get(map_t map, void *key) {
+    unsigned long long hash_value;
+    size_t index;
+    entry_t existing;
+
     if (!map || !key)
         return NULL;
 
-    unsigned long long hash_value = map->hash(key);
-    size_t index = hash_value % map->capacity;
+    hash_value = map->hash(key);
+    index = hash_value % map->capacity;
 
-    entry_t existing = map->elements[index];
+    existing = map->elements[index];
     while (existing) {
         if (!(map->compare(existing->key, key))) {
             return existing;
@@ -165,19 +178,21 @@ entry_t map_get(map_t map, void *key) {
 
 struct hashmap_entry *map_remove(struct hashmap *map, void *key)
 {
+    entry_t entry, curr;
+    int index;
     if (!map || !key)
         return NULL;
 
-    entry_t entry = map_get(map, key);
+    entry = map_get(map, key);
     if (!entry)
         return NULL;
 
-    int index = entry->hash_value % map->capacity;
+    index = entry->hash_value % map->capacity;
 
     if (entry == map->elements[index])
         map->elements[index] = entry->next;
     else {
-        entry_t curr = map->elements[index];
+        curr = map->elements[index];
         while (curr->next != entry) {
             curr = curr->next;
         }
@@ -200,12 +215,10 @@ void print(entry_t entry)
 
 void debug_print_map(struct hashmap *map)
 {
-    if (!map)
-    {
-        return;
-    }
-
     int i;
+    if (!map)
+        return;
+
     for (i = 0; i < map->capacity; i++)
     {
         TRACE(("[%d]:\n", i));

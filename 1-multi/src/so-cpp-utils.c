@@ -7,9 +7,6 @@ int compare_strings(void *s1, void *s2)
 
 unsigned long long hash_string(void *s)
 {
-    if (!s)
-        return 0;
-
     const int p = 31;
     const int m = 1e9 + 9;
 
@@ -17,9 +14,15 @@ unsigned long long hash_string(void *s)
     unsigned long long poly = 1;
 
     int i;
+    char c;
+
+    if (!s)
+        return 0;
+
+
     for (i = 0; i < strlen(s); i++)
     {
-        char c = ((char *)s)[i];
+        c = ((char *)s)[i];
         result = (result + (c - 'a' + 1) * poly) % m;
         poly = (poly * p) % m;
     }

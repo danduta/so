@@ -4,25 +4,26 @@
 int cpp_parse_cli_args(int argc, const char *argv[], map_t *symbol_table, list_t directories, char* in_filename, char *out_filename)
 {
     int res, idx;
+    char *symbol, *symbol_loc, *mapping, *equal, *directory, *directory_loc, *filename_loc;
     for (idx = 1; idx < argc; idx++)
     {
         if (strncmp(argv[idx], "-D", 2) == 0)
         {
-            char *symbol = calloc(BUFFER_LIMIT, sizeof(char));
+            symbol = calloc(BUFFER_LIMIT, sizeof(char));
             if (!symbol)
                 return ENOMEM;
 
-            char *symbol_loc = NULL;
+            symbol_loc = NULL;
             if (strlen(argv[idx]) == 2)
                 symbol_loc = argv[++idx];
             else
                 symbol_loc = argv[idx] + 2;
 
-            char *mapping = calloc(BUFFER_LIMIT, sizeof(char));
+            mapping = calloc(BUFFER_LIMIT, sizeof(char));
             if (!mapping)
                 return ENOMEM;
 
-            char *equal = strchr(symbol_loc, '=');
+            equal = strchr(symbol_loc, '=');
             if (equal)
             {
                 strcpy(mapping, equal + 1);
@@ -40,11 +41,11 @@ int cpp_parse_cli_args(int argc, const char *argv[], map_t *symbol_table, list_t
         }
         else if (strncmp(argv[idx], "-I", 2) == 0)
         {
-            char *directory = calloc(BUFFER_LIMIT, sizeof(char));
+            directory = calloc(BUFFER_LIMIT, sizeof(char));
             if (!directory)
                 return ENOMEM;
 
-            char *directory_loc = NULL;
+            directory_loc = NULL;
             if (strlen(argv[idx]) == 2)
                 directory_loc = argv[++idx];
             else
@@ -59,7 +60,6 @@ int cpp_parse_cli_args(int argc, const char *argv[], map_t *symbol_table, list_t
         }
         else if (strncmp(argv[idx], "-o", 2) == 0)
         {
-            char* filename_loc;
             if (strlen(argv[idx]) == 2)
                 filename_loc = argv[++idx];
             else
@@ -95,18 +95,20 @@ int cpp_parse_cli_args(int argc, const char *argv[], map_t *symbol_table, list_t
 }
 
 FILE* cpp_get_included_file(char* filename, list_t directories) {
+    char buffer[BUFFER_LIMIT];
+    FILE* res;
+    node_t curr;
+
     if (!filename)
         return NULL;
 
-    char buffer[BUFFER_LIMIT];
-
     TRACE(("[PARSING] Trying to reach file %s...\n", filename));
 
-    FILE* res = fopen(filename, "r+");
+    res = fopen(filename, "r+");
     if (res)
         return res;
 
-    node_t curr = directories->next;
+    curr = directories->next;
     while (curr) {
         strcpy(buffer, curr->data);
         strcat(buffer, "/");
@@ -128,17 +130,16 @@ FILE* cpp_get_included_file(char* filename, list_t directories) {
 
 int cpp_parse_input_file(map_t *symbol_table, char *input_filename, char *output_filename, list_t directories)
 {
+    int res;
+    FILE *input, *output;
     if (!symbol_table || !input_filename)
         return EINVAL;
 
-    int res;
 
-    FILE *input = fopen(input_filename, "r");
+    input = fopen(input_filename, "r");
     if (!input)
         return EINVAL;
 
-    FILE *output;
-    
     if (output_filename[0] == '\0')
         output = stdout;
     else {
@@ -153,34 +154,37 @@ int cpp_parse_input_file(map_t *symbol_table, char *input_filename, char *output
 
     fclose(input);
 
-    if (output != stdin)
+    if (output != stdout)
         fclose(output);
 
     return res;
 }
 
 void cpp_process_line(map_t symbol_table, char* line) {
+    char symbol[BUFFER_LIMIT], buffer[BUFFER_LIMIT], *symbol_start, *next_delimiter;
+    entry_t entry;
+    FILE* included_file;
+
+    int i = 0;
+
     if (!symbol_table || !line)
         return;
 
-    char symbol[BUFFER_LIMIT], buffer[BUFFER_LIMIT];
-
-    int i = 0;
     while (*(line + i)) {
         if (strchr(DELIMITERS, line[i])) {
             i++;
             continue;
         }
 
-        char *symbol_start = line + i;
-        char *next_delimiter = line + i;
+        symbol_start = line + i;
+        next_delimiter = line + i;
         while (!(strchr(DELIMITERS, *next_delimiter++)))
             i++;
 
         strncpy(symbol, symbol_start, next_delimiter - symbol_start - 1);
         symbol[next_delimiter - symbol_start - 1] = '\0';
 
-        entry_t entry = map_get(symbol_table, symbol);
+        entry = map_get(symbol_table, symbol);
         if (!entry) {
             i++;
             continue;
@@ -224,8 +228,12 @@ int cpp_skip_inactive_if(FILE* input, char* buffer) {
 
 int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* output, list_t directories)
 {
-    char buffer[BUFFER_LIMIT];
-    int res;
+    char buffer[BUFFER_LIMIT], *p, *apostrophe, *arrow, *included_filename_loc, included_filename[BUFFER_LIMIT];
+    char *closest, *closure, *symbol, *mapping, *space, *newl, *symbol_loc, *c;
+    char symbol_buf[BUFFER_LIMIT];
+    int res, truth_value, exists, is_first;
+
+    FILE* included_file;
 
     while (fgets(buffer, BUFFER_LIMIT, input))
     {
@@ -236,11 +244,8 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
 
         if (p = strstr(buffer, "#include"))
         {
-            char *apostrophe = strchr(buffer, '\"');
-            char *arrow = strchr(buffer, '<');
-
-            char *included_filename_loc, *closure;
-            char included_filename[BUFFER_LIMIT];
+            apostrophe = strchr(buffer, '\"');
+            arrow = strchr(buffer, '<');
 
             if (!apostrophe)
             {
@@ -258,7 +263,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
             }
             else
             {
-                char *closest = arrow - buffer < apostrophe - buffer ? arrow + 1 : apostrophe + 1;
+                closest = arrow - buffer < apostrophe - buffer ? arrow + 1 : apostrophe + 1;
                 included_filename_loc = closest;
 
                 if (closest == arrow + 1)
@@ -277,7 +282,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
 
             TRACE(("[INCLUDED FILE] %s\n", included_filename));
 
-            FILE* included_file = cpp_get_included_file(included_filename, directories);
+            included_file = cpp_get_included_file(included_filename, directories);
             if (!included_file)
                 return EINVAL;
 
@@ -290,17 +295,17 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
         } else if (p = strstr(buffer, "#define ")) {
             cpp_process_line(*symbol_table, buffer);
 
-            char *symbol = calloc(BUFFER_LIMIT, sizeof(char));
+            symbol = calloc(BUFFER_LIMIT, sizeof(char));
             if (!symbol)
                 return ENOMEM;
 
-            char *symbol_loc = strchr(p, ' ') + 1;
+            symbol_loc = strchr(p, ' ') + 1;
 
-            char *mapping = calloc(BUFFER_LIMIT, sizeof(char));
+            mapping = calloc(BUFFER_LIMIT, sizeof(char));
             if (!mapping)
                 return ENOMEM;
 
-            char *space = strchr(symbol_loc, ' ');
+            space = strchr(symbol_loc, ' ');
             if (!space)
             {
                 strncpy(symbol, symbol_loc, strlen(symbol_loc) - 1);
@@ -327,10 +332,10 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
             }
 
             memmove(buffer, space + 1, strlen(space + 1) + 1);
-            int is_first = 1;
+            is_first = 1;
 
             while (strchr(buffer, '\\')) {
-                char *c = buffer;
+                c = buffer;
                 while (*c == ' ' || *c == '\t')
                     c++;
 
@@ -345,7 +350,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
                 is_first = 0;
             }
 
-            char *c = buffer;
+            c = buffer;
             while (*c == ' ' || *c == '\t')
                 c++;
 
@@ -360,17 +365,15 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
             if (res = map_insert(symbol_table, symbol, mapping))
                 return res;
         } else if ((p = strstr(buffer, "#ifdef ")) || (p = strstr(buffer, "#ifndef "))) {
-            int truth_value = *(p + 3) == 'd' ? 1 : 0;
-            char *symbol_loc = strchr(buffer, ' ') + 1;
-            char symbol[BUFFER_LIMIT];
-
+            truth_value = *(p + 3) == 'd' ? 1 : 0;
+            symbol_loc = strchr(buffer, ' ') + 1;
             
-            strcpy(symbol, symbol_loc);
-            char *newl = strchr(symbol, '\n');
+            strcpy(symbol_buf, symbol_loc);
+            newl = strchr(symbol_buf, '\n');
             *newl = '\0';
 
-            int exists = map_get(*symbol_table, symbol) ? 1 : 0;
-            TRACE(("[IF%cDEF] Looking for symbol %s. Truth value: %d, exists: %d.\n", truth_value ? '\0' : 'N', symbol, truth_value, exists));
+            exists = map_get(*symbol_table, symbol_buf) ? 1 : 0;
+            TRACE(("[IF%cDEF] Looking for symbol %s. Truth value: %d, exists: %d.\n", truth_value ? '\0' : 'N', symbol_buf, truth_value, exists));
             if (truth_value == exists)
                 continue;
 
@@ -379,7 +382,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
             do {
                 cpp_process_line(*symbol_table, buffer);
 
-                char *space = strchr(buffer, ' ');
+                space = strchr(buffer, ' ');
                 if (space[1] != '0') {
                     TRACE(("[IF] Active if branch! Condition: %s", space+1));
                     break;
@@ -392,14 +395,13 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
         } else if (p = strstr(buffer, "#endif")) {
             continue;
         } else if (p = strstr(buffer, "#undef")) {
-            char *symbol_loc = strchr(buffer, ' ') + 1;
-            char symbol[BUFFER_LIMIT];
+            symbol_loc = strchr(buffer, ' ') + 1;
             
-            strncpy(symbol, symbol_loc, strlen(symbol_loc) - 1);
-            symbol[strlen(symbol_loc) - 1] = '\0';
+            strncpy(symbol_buf, symbol_loc, strlen(symbol_loc) - 1);
+            symbol_buf[strlen(symbol_loc) - 1] = '\0';
 
-            map_remove(*symbol_table, symbol);
-            TRACE(("[PARSING] Removed symbol: %s, %d\n", symbol, strlen(symbol)));
+            map_remove(*symbol_table, symbol_buf);
+            TRACE(("[PARSING] Removed symbol: %s, %d\n", symbol_buf, strlen(symbol_buf)));
         } else {
             cpp_process_line(*symbol_table, buffer);
             fputs(buffer, output);

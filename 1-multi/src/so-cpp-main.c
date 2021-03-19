@@ -6,14 +6,14 @@
 int main(int argc, char const *argv[])
 {
     int idx;
-    char outfile_name[BUFFER_LIMIT] = "", infile_name[BUFFER_LIMIT] = "";
+    char outfile_name[BUFFER_LIMIT] = "", infile_name[BUFFER_LIMIT] = "", *current_file, *buffer;
     int res;
+    map_t symbol_table;
+    list_t directories;
 
-    struct hashmap *symbol_table;
     if (res = map_alloc(&symbol_table, 10, 0.75, hash_string, compare_strings))
         goto free_mem;
 
-    list_t directories;
     if (res = list_alloc(&directories, &free))
         goto free_mem;
 
@@ -24,9 +24,9 @@ int main(int argc, char const *argv[])
     if (infile_name[0] == '\0')
         fscanf(stdin, "%s", infile_name);
 
-    char *current_file = strrchr(infile_name, '/');
+    current_file = strrchr(infile_name, '/');
     if (current_file) {
-        char* buffer = calloc(BUFFER_LIMIT, sizeof(char));
+        buffer = calloc(BUFFER_LIMIT, sizeof(char));
         if (!buffer) {
             res = ENOMEM;
             goto free_mem;
