@@ -7,6 +7,7 @@ struct list_node
 {
     void *data;
     struct list_node *next;
+    struct list_node *tail;
     void (*free)(void *);
 };
 

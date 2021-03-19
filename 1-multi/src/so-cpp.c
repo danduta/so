@@ -149,15 +149,14 @@ int cpp_parse_input_file(map_t *symbol_table, char *input_filename, char *output
 
     TRACE(("[PARSING] Parsing input file: %s.\n\n", input_filename));
 
-    if (res = cpp_recursive_parse_included_file(symbol_table, input, output, directories))
-        return res;
+    res = cpp_recursive_parse_included_file(symbol_table, input, output, directories);
 
     fclose(input);
 
     if (output != stdin)
         fclose(output);
 
-    return EXIT_SUCCESS;
+    return res;
 }
 
 void cpp_process_line(map_t symbol_table, char* line) {
@@ -166,10 +165,12 @@ void cpp_process_line(map_t symbol_table, char* line) {
 
     char symbol[BUFFER_LIMIT], buffer[BUFFER_LIMIT];
 
-    int i;
-    for (i = 0; i < strlen(line); i++) {
-        if (strchr(DELIMITERS, line[i]))
+    int i = 0;
+    while (*(line + i)) {
+        if (strchr(DELIMITERS, line[i])) {
+            i++;
             continue;
+        }
 
         char *symbol_start = line + i;
         char *next_delimiter = line + i;
@@ -180,14 +181,20 @@ void cpp_process_line(map_t symbol_table, char* line) {
         symbol[next_delimiter - symbol_start - 1] = '\0';
 
         entry_t entry = map_get(symbol_table, symbol);
-        if (!entry)
+        if (!entry) {
+            i++;
             continue;
+        }
 
         strcpy(buffer, next_delimiter - 1);
         symbol_start[0] = '\0';
         strcat(line, entry->value);
         symbol_start[strlen(entry->value)] = '\0';
         strcat(line, buffer);
+
+        i = symbol_start + strlen(entry->value) - line;
+
+        i++;
     }
 }
 
@@ -272,7 +279,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
 
             FILE* included_file = cpp_get_included_file(included_filename, directories);
             if (!included_file)
-                continue;
+                return EINVAL;
 
             TRACE(("[PARSING] Parsing included file: %s\n", included_filename));
 
@@ -280,7 +287,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
                 return res;
 
             fclose(included_file);
-        } else if (p = strstr(buffer, "#define")) {
+        } else if (p = strstr(buffer, "#define ")) {
             cpp_process_line(*symbol_table, buffer);
 
             char *symbol = calloc(BUFFER_LIMIT, sizeof(char));
@@ -352,7 +359,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
 
             if (res = map_insert(symbol_table, symbol, mapping))
                 return res;
-        } else if ((p = strstr(buffer, "#ifdef")) || (p = strstr(buffer, "#ifndef"))) {
+        } else if ((p = strstr(buffer, "#ifdef ")) || (p = strstr(buffer, "#ifndef "))) {
             int truth_value = *(p + 3) == 'd' ? 1 : 0;
             char *symbol_loc = strchr(buffer, ' ') + 1;
             char symbol[BUFFER_LIMIT];
@@ -368,7 +375,7 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
                 continue;
 
             cpp_skip_inactive_if(input, buffer);
-        } else if (p = strstr(buffer, "#if")) {
+        } else if (p = strstr(buffer, "#if ")) {
             do {
                 cpp_process_line(*symbol_table, buffer);
 

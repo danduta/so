@@ -42,9 +42,16 @@ int list_insert(list_t l, void *data)
         return ENOMEM;
 
     new_node->data = data;
-    new_node->next = l->next;
+    new_node->next = NULL;
 
-    l->next = new_node;
+    if (!l->next) {
+        l->next = new_node;
+        l->tail = new_node;
+        return EXIT_SUCCESS;
+    }
+
+    l->tail->next = new_node;
+    l->tail = new_node;
 
     return EXIT_SUCCESS;
 }

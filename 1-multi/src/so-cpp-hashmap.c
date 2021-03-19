@@ -14,8 +14,9 @@ int map_alloc(map_t *map, size_t initial_size, double load_factor, unsigned long
 
     result->size = 0;
     result->capacity = initial_size;
-    result->elements = calloc(sizeof(entry_t), initial_size);
-    DIE(!result->elements, "malloc");
+    result->elements = calloc(sizeof(struct hashmap_entry*), initial_size);
+    if (!result->elements)
+        return ENOMEM;
 
     result->hash = hash;
     result->compare = compare;

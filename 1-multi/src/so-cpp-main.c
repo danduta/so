@@ -20,15 +20,22 @@ int main(int argc, char const *argv[])
     if (res = cpp_parse_cli_args(argc, argv, &symbol_table, directories, infile_name, outfile_name))
         goto free_mem;
 
+
     if (infile_name[0] == '\0')
         fscanf(stdin, "%s", infile_name);
 
-    /* if (outfile_name[0] == '\0') {
-        char* extension = strchr(infile_name, '.');
-        strncpy(outfile_name, infile_name, extension - infile_name);
-        strcat(outfile_name, PREPROC_EXTENS);
-        TRACE(("[PARSING] No output file was given. Outputting to %s.\n\n", outfile_name));
-    } */
+    char *current_file = strrchr(infile_name, '/');
+    if (current_file) {
+        char* buffer = calloc(BUFFER_LIMIT, sizeof(char));
+        if (!buffer) {
+            res = ENOMEM;
+            goto free_mem;
+        }
+
+        strncpy(buffer, infile_name, current_file - infile_name + 1);
+        buffer[current_file - infile_name + 1] = '\0';
+        list_insert(directories, buffer);
+    }
 
     if (res = cpp_parse_input_file(&symbol_table, infile_name, outfile_name, directories))
         goto free_mem;
