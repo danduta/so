@@ -1,7 +1,7 @@
 #include <so-cpp.h>
 #include <so-cpp-list.h>
 
-int cpp_parse_cli_args(int argc, char *argv[], map_t *symbol_table, list_t directories, char* in_filename, char *out_filename)
+int cpp_parse_cli_args(int argc, const char *argv[], map_t *symbol_table, list_t directories, char* in_filename, char *out_filename)
 {
     int res, idx;
     for (idx = 1; idx < argc; idx++)
@@ -57,13 +57,33 @@ int cpp_parse_cli_args(int argc, char *argv[], map_t *symbol_table, list_t direc
             if (res = list_insert(directories, directory))
                 return res;
         }
-        else if (strcmp(argv[idx], "-o") == 0)
+        else if (strncmp(argv[idx], "-o", 2) == 0)
         {
-            strcpy(out_filename, argv[++idx]);
+            char* filename_loc;
+            if (strlen(argv[idx]) == 2)
+                filename_loc = argv[++idx];
+            else
+                filename_loc = argv[idx] + 2;
+
+            strcpy(out_filename, filename_loc);
             TRACE(("[PARSING] Found output file: %s\n", out_filename));
+        }
+        else if (argv[idx][0] == '-')
+        {
+            return EINVAL;
         }
         else
         {
+            if (in_filename[0] != '\0' && out_filename[0] != '\0')
+                return EINVAL;
+
+            if (in_filename[0] != '\0') {
+                strcpy(out_filename, argv[idx]);
+                TRACE(("[PARSING] Found output file: %s\n", out_filename));
+
+                continue;
+            }
+
             strcpy(in_filename, argv[idx]);
             TRACE(("[PARSING] Found input file: %s\n", in_filename));
         }
@@ -73,30 +93,6 @@ int cpp_parse_cli_args(int argc, char *argv[], map_t *symbol_table, list_t direc
 
     return EXIT_SUCCESS;
 }
-
-int cpp_get_file_list(list_t *files, list_t filenames)
-{
-    int res = list_alloc(files, fclose);
-    if (res)
-        return res;
-
-    node_t curr = filenames->next;
-    while (curr)
-    {
-        FILE *fp = fopen(curr->data, "r+");
-        if (fp)
-        {
-            list_insert(*files, fp);
-            TRACE(("[PARSING] Found file for reading: %s\n", curr->data));
-        }
-
-        curr = curr->next;
-    }
-
-    return EXIT_SUCCESS;
-}
-
-#define DELIMITERS "\t []{}<>=+-*/%!&|^.,:;()\\.\n"
 
 FILE* cpp_get_included_file(char* filename, list_t directories) {
     if (!filename)
@@ -141,9 +137,15 @@ int cpp_parse_input_file(map_t *symbol_table, char *input_filename, char *output
     if (!input)
         return EINVAL;
 
-    FILE *output = fopen(output_filename, "w+");
-    if (!output)
-        return EINVAL;
+    FILE *output;
+    
+    if (output_filename[0] == '\0')
+        output = stdout;
+    else {
+        output = fopen(output_filename, "w+");
+        if (!output)
+            return EINVAL;
+    }
 
     TRACE(("[PARSING] Parsing input file: %s.\n\n", input_filename));
 
@@ -151,6 +153,64 @@ int cpp_parse_input_file(map_t *symbol_table, char *input_filename, char *output
         return res;
 
     fclose(input);
+
+    if (output != stdin)
+        fclose(output);
+
+    return EXIT_SUCCESS;
+}
+
+void cpp_process_line(map_t symbol_table, char* line) {
+    if (!symbol_table || !line)
+        return;
+
+    char symbol[BUFFER_LIMIT], buffer[BUFFER_LIMIT];
+
+    int i;
+    for (i = 0; i < strlen(line); i++) {
+        if (strchr(DELIMITERS, line[i]))
+            continue;
+
+        char *symbol_start = line + i;
+        char *next_delimiter = line + i;
+        while (!(strchr(DELIMITERS, *next_delimiter++)))
+            i++;
+
+        strncpy(symbol, symbol_start, next_delimiter - symbol_start - 1);
+        symbol[next_delimiter - symbol_start - 1] = '\0';
+
+        entry_t entry = map_get(symbol_table, symbol);
+        if (!entry)
+            continue;
+
+        strcpy(buffer, next_delimiter - 1);
+        symbol_start[0] = '\0';
+        strcat(line, entry->value);
+        symbol_start[strlen(entry->value)] = '\0';
+        strcat(line, buffer);
+    }
+}
+
+int cpp_skip_inactive_if(FILE* input, char* buffer) {
+
+    int ifs = 0;
+    while (fgets(buffer, BUFFER_LIMIT, input)) {
+        TRACE(("[IF] Skipping inactive if line...%s", buffer));
+        if (strstr(buffer, "#if"))
+            ifs++;
+        else if (strstr(buffer, "#endif")) {;
+            if (!ifs)
+                return EXIT_SUCCESS;
+
+            ifs--;
+        } else if (strstr(buffer, "#elif")) {
+            if (!ifs)
+                return EXIT_FAILURE;
+        } else if (strstr(buffer, "#else")) {
+            if (!ifs)
+                return EXIT_SUCCESS;
+        }
+    }
 
     return EXIT_SUCCESS;
 }
@@ -163,6 +223,9 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
     while (fgets(buffer, BUFFER_LIMIT, input))
     {
         char *p;
+
+        if (!strcmp(buffer, "\n"))
+            continue;
 
         if (p = strstr(buffer, "#include"))
         {
@@ -217,7 +280,9 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
                 return res;
 
             fclose(included_file);
-        } else if (p = strstr(buffer, "#define")) { 
+        } else if (p = strstr(buffer, "#define")) {
+            cpp_process_line(*symbol_table, buffer);
+
             char *symbol = calloc(BUFFER_LIMIT, sizeof(char));
             if (!symbol)
                 return ENOMEM;
@@ -229,37 +294,107 @@ int cpp_recursive_parse_included_file(map_t *symbol_table, FILE *input, FILE* ou
                 return ENOMEM;
 
             char *space = strchr(symbol_loc, ' ');
-            if (space)
-            {
-                strncpy(symbol, symbol_loc, space - symbol_loc);
-
-                char* string_literal = strchr(space, '"');
-                char* end;
-                if (string_literal)
-                    end = strrchr(buffer, '"');
-                else
-                    end = strchr(buffer, '\n');
-
-                while (strchr(buffer, '\\')) {
-                    strncat(mapping, space, strlen(space) - 2);
-                    fgets(buffer, BUFFER_LIMIT, input);
-                    space = buffer;
-                }
-
-                end = strchr(buffer, '\n') - 1;
-
-                strncat(mapping, space + 1, end - space);
-            }
-            else
+            if (!space)
             {
                 strncpy(symbol, symbol_loc, strlen(symbol_loc) - 1);
+                TRACE(("[PARSING] Found symbol without mapping: %s\n", symbol));
+
+                if (res = map_insert(symbol_table, symbol, mapping))
+                    return res;
+
+                continue;
             }
+
+            strncpy(symbol, symbol_loc, space - symbol_loc);
+
+            if (!strchr(space, '\\')) {
+                strncpy(mapping, space + 1, strlen(space + 1) - 1);
+                mapping[strlen(space) - 1] = '\0';
+
+                TRACE(("[PARSING] Found symbol: %s = %s\n", symbol, mapping));
+
+                if (res = map_insert(symbol_table, symbol, mapping))
+                    return res;
+
+                continue;
+            }
+
+            memmove(buffer, space + 1, strlen(space + 1) + 1);
+            int is_first = 1;
+
+            while (strchr(buffer, '\\')) {
+                char *c = buffer;
+                while (*c == ' ' || *c == '\t')
+                    c++;
+
+                memmove(buffer, c, strlen(c) + 1);
+                c = strchr(buffer, '\\');
+                *c = '\0';
+                strcat(mapping, buffer);
+                if (!is_first)
+                    strcat(mapping, " ");
+
+                fgets(buffer, BUFFER_LIMIT, input);
+                is_first = 0;
+            }
+
+            char *c = buffer;
+            while (*c == ' ' || *c == '\t')
+                c++;
+
+            memmove(buffer, c, strlen(c) + 1);
+            c = strchr(buffer, '\n');
+            *c = '\0';
+            strcat(mapping, buffer);
+            fgets(buffer, BUFFER_LIMIT, input);
 
             TRACE(("[PARSING] Found symbol: %s = %s\n", symbol, mapping));
 
             if (res = map_insert(symbol_table, symbol, mapping))
                 return res;
+        } else if ((p = strstr(buffer, "#ifdef")) || (p = strstr(buffer, "#ifndef"))) {
+            int truth_value = *(p + 3) == 'd' ? 1 : 0;
+            char *symbol_loc = strchr(buffer, ' ') + 1;
+            char symbol[BUFFER_LIMIT];
+
+            
+            strcpy(symbol, symbol_loc);
+            char *newl = strchr(symbol, '\n');
+            *newl = '\0';
+
+            int exists = map_get(*symbol_table, symbol) ? 1 : 0;
+            TRACE(("[IF%cDEF] Looking for symbol %s. Truth value: %d, exists: %d.\n", truth_value ? '\0' : 'N', symbol, truth_value, exists));
+            if (truth_value == exists)
+                continue;
+
+            cpp_skip_inactive_if(input, buffer);
+        } else if (p = strstr(buffer, "#if")) {
+            do {
+                cpp_process_line(*symbol_table, buffer);
+
+                char *space = strchr(buffer, ' ');
+                if (space[1] != '0') {
+                    TRACE(("[IF] Active if branch! Condition: %s", space+1));
+                    break;
+                }
+            } while (cpp_skip_inactive_if(input, buffer));
+        } else if (p = strstr(buffer, "#elif")) {
+            while (cpp_skip_inactive_if(input, buffer)) {}
+        } else if (p = strstr(buffer, "else")) {
+            while (cpp_skip_inactive_if(input, buffer)) {}
+        } else if (p = strstr(buffer, "#endif")) {
+            continue;
+        } else if (p = strstr(buffer, "#undef")) {
+            char *symbol_loc = strchr(buffer, ' ') + 1;
+            char symbol[BUFFER_LIMIT];
+            
+            strncpy(symbol, symbol_loc, strlen(symbol_loc) - 1);
+            symbol[strlen(symbol_loc) - 1] = '\0';
+
+            map_remove(*symbol_table, symbol);
+            TRACE(("[PARSING] Removed symbol: %s, %d\n", symbol, strlen(symbol)));
         } else {
+            cpp_process_line(*symbol_table, buffer);
             fputs(buffer, output);
         }
     }

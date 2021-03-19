@@ -28,11 +28,11 @@ struct hashmap
 typedef struct hashmap *map_t;
 typedef struct hashmap_entry *entry_t;
 
-int map_alloc(struct hashmap **, size_t, double, unsigned long long(void *), int(void *, void *));
-void map_dealloc(struct hashmap *);
-int map_insert(struct hashmap **, void *, void *);
-struct hashmap_entry *map_get(struct hashmap *, void *);
-struct hashmap_entry *map_remove(struct hashmap *, void *);
-void debug_print_map(struct hashmap *);
+int map_alloc(map_t*, size_t, double, unsigned long long(void *), int(void *, void *));
+void map_dealloc(map_t);
+int map_insert(map_t*, void *, void *);
+entry_t map_get(map_t, void *);
+entry_t map_remove(map_t, void *);
+void debug_print_map(map_t);
 
 #endif

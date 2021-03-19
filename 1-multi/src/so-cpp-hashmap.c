@@ -120,6 +120,7 @@ int map_insert(struct hashmap **pmap, void *key, void *value)
     entry_t existing = map->elements[index];
     while (existing) {
         if (!(map->compare(existing->key, key))) {
+            free(existing->value);
             existing->value = value;
             return EXIT_SUCCESS;
         }
@@ -142,9 +143,53 @@ int map_insert(struct hashmap **pmap, void *key, void *value)
     return EXIT_SUCCESS;
 }
 
+entry_t map_get(map_t map, void *key) {
+    if (!map || !key)
+        return NULL;
+
+    unsigned long long hash_value = map->hash(key);
+    size_t index = hash_value % map->capacity;
+
+    entry_t existing = map->elements[index];
+    while (existing) {
+        if (!(map->compare(existing->key, key))) {
+            return existing;
+        }
+
+        existing = existing->next;
+    }
+
+    return NULL;
+}
+
 struct hashmap_entry *map_remove(struct hashmap *map, void *key)
 {
-    return NULL;
+    if (!map || !key)
+        return NULL;
+
+    entry_t entry = map_get(map, key);
+    if (!entry)
+        return NULL;
+
+    int index = entry->hash_value % map->capacity;
+
+    if (entry == map->elements[index])
+        map->elements[index] = entry->next;
+    else {
+        entry_t curr = map->elements[index];
+        while (curr->next != entry) {
+            curr = curr->next;
+        }
+
+        curr->next = entry->next;
+    }
+
+    free_entry(entry);
+
+    map->size--;
+    map->load_factor = ((double) map->size) / map->capacity;
+
+    return entry;
 }
 
 void print(entry_t entry)
