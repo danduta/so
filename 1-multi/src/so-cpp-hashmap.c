@@ -1,8 +1,14 @@
 #include <so-cpp-hashmap.h>
 
-int map_alloc(map_t *map, size_t initial_size, double load_factor, unsigned long long (*hash)(void *), int (*compare)(void *, void *))
+int map_alloc(
+    map_t *map,
+    size_t initial_size,
+    double load_factor,
+    unsigned long long (*hash)(void *),
+    int (*compare)(void *, void *))
 {
     map_t result;
+
     if (initial_size < 1 || load_factor > 1)
         return EINVAL;
 
@@ -15,7 +21,7 @@ int map_alloc(map_t *map, size_t initial_size, double load_factor, unsigned long
 
     result->size = 0;
     result->capacity = initial_size;
-    result->elements = calloc(sizeof(struct hashmap_entry*), initial_size);
+    result->elements = calloc(sizeof(struct hashmap_entry *), initial_size);
     if (!result->elements)
         return ENOMEM;
 
@@ -31,6 +37,7 @@ int map_alloc(map_t *map, size_t initial_size, double load_factor, unsigned long
 void traverse(entry_t list, void (*operation)(entry_t))
 {
     entry_t curr, next;
+
     if (!list || !operation)
         return;
 
@@ -84,6 +91,7 @@ int map_insert(struct hashmap **pmap, void *key, void *value)
     entry_t curr;
     unsigned long long hash_value;
     size_t index;
+    int i;
 
     if (!pmap || !(*pmap)->elements)
         return EINVAL;
@@ -99,7 +107,6 @@ int map_insert(struct hashmap **pmap, void *key, void *value)
         if (map_alloc(&new_map, 2 * map->capacity, map->load_factor, map->hash, map->compare))
             return ENOMEM;
 
-        int i;
         for (i = 0; i < map->capacity; i++)
         {
             if (!map->elements[i])
@@ -166,9 +173,8 @@ entry_t map_get(map_t map, void *key) {
 
     existing = map->elements[index];
     while (existing) {
-        if (!(map->compare(existing->key, key))) {
+        if (!(map->compare(existing->key, key)))
             return existing;
-        }
 
         existing = existing->next;
     }
@@ -193,9 +199,8 @@ struct hashmap_entry *map_remove(struct hashmap *map, void *key)
         map->elements[index] = entry->next;
     else {
         curr = map->elements[index];
-        while (curr->next != entry) {
+        while (curr->next != entry)
             curr = curr->next;
-        }
 
         curr->next = entry->next;
     }
