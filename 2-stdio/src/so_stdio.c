@@ -94,7 +94,7 @@ int so_fflush(SO_FILE *stream) {
         return SO_EOF;
 
     if (stream->last_op == READ) {
-        so_fseek(stream, stream->no_bytes - stream->cursor, SEEK_CUR);
+        lseek(stream->fd, -stream->no_bytes, SEEK_CUR);
 
         stream->cursor = 0;
         stream->no_bytes = 0;
@@ -125,6 +125,40 @@ int so_fflush(SO_FILE *stream) {
 int so_fseek(SO_FILE *stream, long offset, int whence) {
     if (!stream)
         return -1;
+
+    if (stream->last_op == READ) {
+        long current = so_ftell(stream);
+
+        int dif, len;
+        switch (whence) {
+            case SEEK_SET:
+                dif = offset - current;
+                break;
+            case SEEK_CUR:
+                dif = offset;
+                break;
+            case SEEK_END:
+                len = lseek(stream->fd, 0, SEEK_END);
+                if (len < 0)
+                    return -1;
+
+                if (lseek(stream->fd, current, SEEK_SET) < 0)
+                    return -1;
+
+                dif = len + offset - current;
+                break;
+
+            default:
+                return -1;
+        }
+
+        if (stream->cursor + dif >= 0 && stream->cursor + dif < stream->no_bytes) {
+            stream->cursor += dif;
+            return 0;
+        }
+
+        so_fflush(stream);
+    }
 
     if (lseek(stream->fd, offset, whence) < 0)
         return -1;
