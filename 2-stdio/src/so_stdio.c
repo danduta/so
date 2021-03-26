@@ -39,7 +39,7 @@ SO_FILE *so_fopen(const char *pathname, const char *mode) {
     else if (!strcmp(mode, "a"))
         fmode = APPEND;
     else if (!strcmp(mode, "a+"))
-        fmode = APPEND | UPDATE;
+        fmode = APPEND | READ | UPDATE;
     else
         return NULL;
 
@@ -119,7 +119,7 @@ int so_fflush(SO_FILE *stream) {
     memset(stream->buffer, 0, BUFSIZE);
     stream->cursor = 0;
 
-    return rc;
+    return 0;
 }
 
 int so_fseek(SO_FILE *stream, long offset, int whence) {
@@ -136,7 +136,10 @@ long so_ftell(SO_FILE *stream) {
     if (!stream)
         return -1;
 
-    return lseek(stream->fd, 0, SEEK_CUR);
+    if (stream->last_op == READ)
+        return lseek(stream->fd, 0, SEEK_CUR) - (BUFSIZE - stream->cursor);
+
+    return lseek(stream->fd, 0, SEEK_CUR) + stream->cursor;
 }
 
 int so_read_internal(SO_FILE *stream) {
