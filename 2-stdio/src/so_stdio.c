@@ -158,6 +158,13 @@ int so_fseek(SO_FILE *stream, long offset, int whence) {
         }
 
         so_fflush(stream);
+    } else if (stream->last_op == WRITE && stream->cursor > 0) {
+        int rc = write(stream->fd, stream->buffer, stream->cursor);
+        if (rc < 0)
+            return -1;
+
+        memset(stream->buffer, 0, BUFSIZE);
+        stream->cursor = 0;
     }
 
     if (lseek(stream->fd, offset, whence) < 0)
