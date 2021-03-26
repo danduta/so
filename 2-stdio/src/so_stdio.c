@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
 
 #define BUFSIZE 4096
 
@@ -44,7 +45,7 @@ SO_FILE *so_fopen(const char *pathname, const char *mode) {
 
     flags |= fmode & READ ? (fmode & UPDATE ? O_RDWR : O_RDONLY) : 0;
     flags |= fmode & WRITE ? (fmode & UPDATE ? O_RDWR : O_WRONLY) | O_CREAT | O_TRUNC : 0;
-    flags |= fmode & APPEND ? (fmode & UPDATE ? O_RDWR : 0) | O_APPEND | O_CREAT | O_TRUNC : 0;
+    flags |= fmode & APPEND ? (fmode & UPDATE ? O_RDWR : O_WRONLY) | O_APPEND | O_CREAT : 0;
 
 
     int fd = open(pathname, flags, 0644);
@@ -92,7 +93,6 @@ int so_fflush(SO_FILE *stream) {
     if (!stream)
         return SO_EOF;
 
-
     if (stream->last_op == READ) {
         so_fseek(stream, stream->no_bytes - stream->cursor, SEEK_CUR);
 
@@ -108,6 +108,9 @@ int so_fflush(SO_FILE *stream) {
 
     if (stream->last_op != WRITE)
         return 0;
+    
+    if (stream->mode & APPEND)
+        so_fseek(stream, 0, SEEK_END);
 
     int rc = write(stream->fd, stream->buffer, stream->cursor);
     if (rc < 0)
@@ -207,10 +210,8 @@ size_t so_fwrite(const void *ptr, size_t size, size_t nmemb, SO_FILE *stream) {
         so_fflush(stream);
 
     while (done < total) {
-        if (so_fputc(*(int*)(ptr + done), stream) != *(int*)(ptr + done)) {
-            printf("DIFFERENT!!!!\n");
+        if (so_fputc(*(int*)(ptr + done), stream) != *(int*)(ptr + done))
             return 0;
-        }
 
         done++;
     }
