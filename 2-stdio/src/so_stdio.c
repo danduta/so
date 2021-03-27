@@ -4,6 +4,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define BUFSIZE 4096
 
@@ -23,6 +25,8 @@ typedef struct _so_file
 	int no_bytes;
 	int err;
 	int eof;
+
+	pid_t pid;
 } SO_FILE;
 
 SO_FILE *so_fopen(const char *pathname, const char *mode)
@@ -375,5 +379,88 @@ int so_ferror(SO_FILE *stream)
 	return stream->err;
 }
 
-SO_FILE *so_popen(const char *command, const char *type) {}
-int so_pclose(SO_FILE *stream) {}
+SO_FILE *so_popen(const char *command, const char *type)
+{
+	if (!command || !type)
+		return NULL;
+
+	int pdes[2];
+
+	if (pipe(pdes))
+		return NULL;
+
+	int mode;
+
+	if (!strcmp(type, "r"))
+		mode = READ;
+	else if (!strcmp(type, "w"))
+		mode = WRITE;
+	else
+		return NULL;
+
+	pid_t p = fork();
+
+	if (p < 0) {
+		close(pdes[0]);
+		close(pdes[1]);
+		return NULL;
+	} else if (p == 0) {
+		if (*type == 'r') {
+			(void) close(pdes[0]);
+			if (pdes[1] != STDOUT_FILENO) {
+				(void)dup2(pdes[1], STDOUT_FILENO);
+				(void)close(pdes[1]);
+			}
+		} else {
+			(void)close(pdes[1]);
+			if (pdes[0] != STDIN_FILENO) {
+				(void)dup2(pdes[0], STDIN_FILENO);
+				(void)close(pdes[0]);
+			}
+		}
+
+		char *argp[2], buf[256];
+
+		strcpy(buf, command);
+		argp[0] = buf;
+		argp[1] = NULL;
+
+		execvp("sh -c", argp);
+		exit(-1);
+	}
+
+	SO_FILE *res = calloc(1, sizeof(struct _so_file));
+
+	if (!res)
+		return NULL;
+
+	res->pid = p;
+	res->mode = mode;
+	if (mode == READ) {
+		res->fd = pdes[0];
+		close(pdes[1]);
+	} else {
+		res->fd = pdes[1];
+		close(pdes[0]);
+	}
+
+	return res;
+}
+
+int so_pclose(SO_FILE *stream)
+{
+	if (!stream || stream->pid == 0) {
+		free(stream);
+		return SO_EOF;
+	}
+
+	int status;
+
+	if (waitpid(stream->pid, &status, 0) < 0) {
+		free(stream);
+		return SO_EOF;
+	}
+
+	free(stream);
+	return status;
+}
